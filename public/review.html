@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kết quả — Luyện Đề</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span></div>
+  <nav id="nav-links"></nav>
+</header>
+
+<main class="container container-wide">
+  <div id="content"></div>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/nav.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const attemptId = params.get("attempt");
+let currentData = null;
+let replayLoaded = false;
+
+async function init() {
+  let data = null;
+  const cached = sessionStorage.getItem("last_result");
+  if (cached) {
+    const parsed = JSON.parse(cached);
+    if (parsed.attemptId === attemptId) data = parsed;
+  }
+
+  if (!data) {
+    try {
+      const { attempts } = await Api.call("get-history");
+      const found = attempts.find((a) => a.id === attemptId);
+      if (found) {
+        data = {
+          score: found.score,
+          total: found.total,
+          results: found.results,
+          examTitle: found.examTitle,
+          category: found.category,
+          examRecordId: found.examRecordId,
+          elapsedSeconds: found.elapsedSeconds,
+          timeLimitMinutes: found.timeLimitMinutes,
+          passageCount: found.passageCount,
+        };
+      }
+    } catch (err) {
+      document.getElementById("content").innerHTML = `<p class="error-msg">${err.message}</p>`;
+      return;
+    }
+  }
+
+  if (!data) {
+    document.getElementById("content").innerHTML = `<p class="muted">Không tìm thấy kết quả bài làm.</p>`;
+    return;
+  }
+
+  currentData = data;
+  render(data);
+}
+
+// Bang quy doi diem tho -> band IELTS Reading (uoc tinh, chi ap dung cho de du 3 passage)
+const IELTS_READING_BAND_TABLE = [
+  { min: 39, band: 9.0 }, { min: 37, band: 8.5 }, { min: 35, band: 8.0 },
+  { min: 33, band: 7.5 }, { min: 30, band: 7.0 }, { min: 27, band: 6.5 },
+  { min: 23, band: 6.0 }, { min: 19, band: 5.5 }, { min: 15, band: 5.0 },
+  { min: 13, band: 4.5 }, { min: 10, band: 4.0 }, { min: 8, band: 3.5 },
+  { min: 6, band: 3.0 }, { min: 4, band: 2.5 },
+];
+function estimateBand(score) {
+  const row = IELTS_READING_BAND_TABLE.find((r) => score >= r.min);
+  return row ? row.band : 2.0;
+}
+
+function formatMMSS(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds || 0));
+  const m = Math.floor(s / 60).toString().padStart(2, "0");
+  const sec = (s % 60).toString().padStart(2, "0");
+  return `${m}:${sec}`;
+}
+
+function statBox(colorVar, icon, label, valueText) {
+  return `
+    <div class="stat-box" style="border-color:${colorVar};">
+      <div class="stat-box-icon" style="color:${colorVar};">${icon}</div>
+      <div class="stat-box-value" style="color:${colorVar};">${valueText}</div>
+      <div class="stat-box-label">${label}</div>
+    </div>`;
+}
+
+function statTile(label, valueHtml) {
+  return `
+    <div class="card" style="margin:0;padding:14px;text-align:center;">
+      <div class="muted">${label}</div>
+      <div style="font-size:1.25rem;font-weight:700;">${valueHtml}</div>
+    </div>`;
+}
+
+function render(data) {
+  const total = data.total || 0;
+  const isIeltsReading = data.category === "IELTS Reading";
+  const isThpt = data.category === "THPT Reading";
+
+  const hasBand = isIeltsReading && total === 40;
+  const band = hasBand ? estimateBand(data.score) : null;
+  const score10 = total ? (data.score / total) * 10 : 0;
+
+  const timeLimitSeconds = (data.timeLimitMinutes || 0) * 60;
+  const timeLimitPart = timeLimitSeconds ? formatMMSS(timeLimitSeconds) : "Không giới hạn";
+
+  const middleBox = isThpt
+    ? statBox("var(--accent)", "🎯", "Điểm (thang 10)", `${score10.toFixed(2)}/10`)
+    : statBox("var(--accent)", "🎯", "Band IELTS ước tính", hasBand ? `${band.toFixed(1)}/9.0` : "--/--");
+
+  const ringsHtml = `
+    <div class="stat-box-row">
+      ${statBox("var(--correct)", "✓", "Correct Answers", `${data.score}/${total}`)}
+      ${middleBox}
+      ${statBox("var(--accent-2)", "⏱", "Thời gian dùng", `${formatMMSS(data.elapsedSeconds)}/${timeLimitPart}`)}
+    </div>`;
+
+  // Breakdown theo tung passage (chi hien neu de co hon 1 passage)
+  const byPassage = {};
+  (data.results || []).forEach((r) => {
+    const p = r.passageOrder || 1;
+    if (!byPassage[p]) byPassage[p] = { correct: 0, total: 0 };
+    byPassage[p].total += 1;
+    if (r.isCorrect) byPassage[p].correct += 1;
+  });
+  const passageKeys = Object.keys(byPassage).sort((a, b) => a - b);
+  const passageTilesHtml = passageKeys.length > 1 ? `
+    <div class="grid-4" style="margin-bottom:20px;">
+      ${passageKeys.map((p) => statTile(`Passage ${p}`, `${byPassage[p].correct}/${byPassage[p].total}`)).join("")}
+    </div>` : "";
+
+  document.getElementById("content").innerHTML = `
+    <div style="text-align:center;">
+      <p class="muted" style="margin-bottom:4px;">${Api.studentUsername() || Api.adminUsername() || ""}</p>
+      <h1>${data.examTitle || "Kết quả bài làm"}</h1>
+    </div>
+    ${ringsHtml}
+    ${passageTilesHtml}
+    <div style="text-align:center;margin:24px 0;">
+      <button id="review-toggle-btn" class="secondary" onclick="toggleReplay()">📖 Xem lại bài làm</button>
+    </div>
+    <div id="review-replay"></div>
+    <p style="text-align:center;margin-top:20px;"><a href="/profile.html">← Xem toàn bộ lịch sử</a></p>
+  `;
+}
+
+async function toggleReplay() {
+  const wrap = document.getElementById("review-replay");
+  const btn = document.getElementById("review-toggle-btn");
+
+  if (wrap.style.display === "block") {
+    wrap.style.display = "none";
+    btn.textContent = "📖 Xem lại bài làm";
+    return;
+  }
+
+  wrap.style.display = "block";
+  btn.textContent = "▲ Ẩn bài làm";
+  if (replayLoaded) return;
+
+  wrap.innerHTML = `<p class="muted">Đang tải lại đề...</p>`;
+  try {
+    if (!currentData.examRecordId) throw new Error("Không tìm thấy đề gốc để xem lại.");
+    const { exam } = await Api.call(`get-exam?id=${encodeURIComponent(currentData.examRecordId)}`);
+    renderReplay(exam.passages || [], currentData.results || []);
+    replayLoaded = true;
+  } catch (err) {
+    wrap.innerHTML = `<p class="error-msg">${err.message}</p>`;
+  }
+}
+
+function stripKeywordMarks(html) {
+  return String(html || "").replace(/<\/?mark[^>]*>/gi, "");
+}
+
+function injectKeywordHighlights(passageHtml, resultsForPassage) {
+  let html = stripKeywordMarks(passageHtml);
+  // Xu ly tu khoa dai truoc de tranh bi tu khoa ngan hon (la substring) an mat
+  const sorted = resultsForPassage.slice().sort((a, b) => (b.keywordHighlight || "").length - (a.keywordHighlight || "").length);
+  sorted.forEach((r) => {
+    if (!r.keywordHighlight) return;
+    const idx = html.indexOf(r.keywordHighlight);
+    if (idx === -1) return;
+    const before = html.slice(0, idx);
+    const match = html.slice(idx, idx + r.keywordHighlight.length);
+    const after = html.slice(idx + r.keywordHighlight.length);
+    html = `${before}<span class="kw-badge">${r.displayIndex}</span><mark class="kw-highlight">${match}</mark>${after}`;
+  });
+  return html;
+}
+
+function renderReplay(passages, results) {
+  const withIndex = results.map((r, i) => ({ ...r, displayIndex: i + 1 }));
+  const passageList = passages.length ? passages : [{ order: 1, title: "", html: "" }];
+  const sortedPassages = passageList.slice().sort((a, b) => a.order - b.order);
+
+  const passagesHtml = sortedPassages.map((p) => {
+    const passageTitle = p.title ? `<h2>${p.title}</h2>` : (sortedPassages.length > 1 ? `<h2>Passage ${p.order}</h2>` : "");
+    const resultsForPassage = withIndex.filter((r) => (r.passageOrder || 1) === p.order);
+    return `${passageTitle}<div>${injectKeywordHighlights(p.html || "", resultsForPassage)}</div>`;
+  }).join("<hr style='border-color:var(--border);margin:20px 0;'/>");
+
+  const questionsHtml = sortedPassages.map((p) => {
+    const resultsForPassage = withIndex.filter((r) => (r.passageOrder || 1) === p.order);
+    const groupTitle = sortedPassages.length > 1 ? `<h2>Câu hỏi — Passage ${p.order}</h2>` : "";
+    const blocks = resultsForPassage.map((r) => `
+      <div class="question-block">
+        <div class="q-text">Câu ${r.displayIndex}. ${r.questionText}</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span class="answer-pill ${r.isCorrect ? "correct" : "wrong"}">${r.given || "(bỏ trống)"}</span>
+          ${!r.isCorrect ? `<span class="muted">→ Đáp án đúng: <strong style="color:var(--correct);">${r.correctAnswer}</strong></span>` : ""}
+        </div>
+        ${r.explanation ? `<div class="admin-answer-note" style="display:block;">${r.explanation}</div>` : ""}
+      </div>`).join("");
+    return `${groupTitle}<div>${blocks}</div>`;
+  }).join("");
+
+  document.getElementById("review-replay").innerHTML = `
+    <div class="exam-layout">
+      <div class="passage-col">${passagesHtml}</div>
+      <div class="questions-col">${questionsHtml}</div>
+    </div>`;
+}
+
+init();
+</script>
+</body>
+</html>

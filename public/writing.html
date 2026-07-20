@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Writing — Luyện Đề</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span></div>
+  <nav id="nav-links"></nav>
+</header>
+
+<main class="container container-wide">
+  <div id="guard-msg" class="card" style="display:none;">
+    <p>Bạn cần <a href="/auth.html">đăng nhập</a> để nộp bài Writing.</p>
+  </div>
+
+  <div id="wrap" style="display:none;">
+    <h1 id="title"></h1>
+    <div id="timer" class="timer"></div>
+
+    <div id="task-container"></div>
+
+    <div class="error-msg" id="error"></div>
+    <div class="success-msg" id="success"></div>
+
+    <div class="task-switcher">
+      <button id="prev-btn" type="button" class="secondary" onclick="switchTask(-1)">← Task trước</button>
+      <div id="task-dots" class="task-dots"></div>
+      <button id="next-btn" type="button" class="secondary" onclick="switchTask(1)">Task sau →</button>
+    </div>
+
+    <div style="text-align:right;margin-top:16px;">
+      <button id="submit-btn" onclick="submitWriting()">Nộp bài</button>
+    </div>
+  </div>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/nav.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const examRecordId = params.get("id");
+let exam = null;
+let timeLeftSec = null;
+let timerHandle = null;
+let currentTaskIdx = 0;
+const essayValues = {};
+
+async function init() {
+  if (!Api.studentToken() && !Api.adminToken()) {
+    document.getElementById("guard-msg").style.display = "block";
+    return;
+  }
+  if (!examRecordId) return;
+
+  try {
+    const { exam: e } = await Api.call(`get-exam?id=${encodeURIComponent(examRecordId)}`);
+    exam = e;
+    if (!exam.tasks || exam.tasks.length === 0) exam.tasks = [{ order: 1, title: "", promptHtml: "" }];
+    exam.tasks.sort((a, b) => a.order - b.order);
+
+    document.getElementById("title").textContent = exam.title;
+    document.getElementById("wrap").style.display = "block";
+    renderTaskDots();
+    renderTask(0);
+
+    if (exam.timeLimitMinutes && exam.timeLimitMinutes > 0) {
+      timeLeftSec = exam.timeLimitMinutes * 60;
+      startTimer();
+    } else {
+      document.getElementById("timer").textContent = "Không giới hạn thời gian";
+    }
+  } catch (err) {
+    document.getElementById("error").textContent = err.message;
+  }
+}
+
+function startTimer() {
+  updateTimerDisplay();
+  timerHandle = setInterval(() => {
+    timeLeftSec -= 1;
+    updateTimerDisplay();
+    if (timeLeftSec <= 0) {
+      clearInterval(timerHandle);
+      submitWriting(true);
+    }
+  }, 1000);
+}
+function updateTimerDisplay() {
+  const m = Math.floor(timeLeftSec / 60).toString().padStart(2, "0");
+  const s = (timeLeftSec % 60).toString().padStart(2, "0");
+  const el = document.getElementById("timer");
+  el.textContent = `Còn lại: ${m}:${s}`;
+  el.classList.toggle("low", timeLeftSec <= 60);
+}
+
+function renderTaskDots() {
+  const dotsEl = document.getElementById("task-dots");
+  dotsEl.innerHTML = exam.tasks.map((t, i) =>
+    `<span class="task-dot ${i === currentTaskIdx ? "active" : ""}">${t.title || `Task ${t.order}`}</span>`
+  ).join("");
+  document.getElementById("prev-btn").style.visibility = currentTaskIdx === 0 ? "hidden" : "visible";
+  document.getElementById("next-btn").style.visibility = currentTaskIdx === exam.tasks.length - 1 ? "hidden" : "visible";
+}
+
+function saveCurrentEssay() {
+  const ta = document.getElementById("essay");
+  if (ta) essayValues[exam.tasks[currentTaskIdx].order] = ta.value;
+}
+
+function switchTask(dir) {
+  saveCurrentEssay();
+  const next = currentTaskIdx + dir;
+  if (next < 0 || next >= exam.tasks.length) return;
+  currentTaskIdx = next;
+  renderTaskDots();
+  renderTask(currentTaskIdx);
+}
+
+function wordCountOf(text) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function renderTask(idx) {
+  const task = exam.tasks[idx];
+  const savedText = essayValues[task.order] || "";
+  const hasImage = /<img/i.test(task.promptHtml || "");
+  const promptHtml = task.promptHtml || "<p class='muted'>(Không có đề bài)</p>";
+  const taskTitle = task.title || `Task ${task.order}`;
+
+  const essayBlockHtml = `
+    <label>Bài viết của bạn — ${taskTitle}</label>
+    <textarea id="essay" rows="16" placeholder="Viết bài luận ở đây..."></textarea>
+    <p class="muted" id="wordcount">0 từ</p>
+  `;
+
+  const container = document.getElementById("task-container");
+  if (hasImage) {
+    container.innerHTML = `
+      <div class="split-view">
+        <div class="prompt-pane">
+          <h2>${taskTitle}</h2>
+          ${promptHtml}
+        </div>
+        <div class="resizer"></div>
+        <div class="essay-pane">${essayBlockHtml}</div>
+      </div>`;
+  } else {
+    container.innerHTML = `
+      <div class="card">
+        <h2 style="margin-top:0;">${taskTitle}</h2>
+        ${promptHtml}
+      </div>
+      ${essayBlockHtml}`;
+  }
+
+  const essayEl = document.getElementById("essay");
+  essayEl.value = savedText;
+  updateWordCount();
+  essayEl.addEventListener("input", updateWordCount);
+}
+
+function updateWordCount() {
+  const essayEl = document.getElementById("essay");
+  document.getElementById("wordcount").textContent = `${wordCountOf(essayEl.value)} từ`;
+}
+
+// === Keo chuot de chinh do rong 2 ben (chi ap dung cho task co hinh anh) ===
+let resizeState = null;
+document.addEventListener("mousedown", (e) => {
+  if (!e.target.classList.contains("resizer")) return;
+  resizeState = { container: e.target.parentElement, leftPane: e.target.previousElementSibling };
+  document.body.style.cursor = "col-resize";
+  e.preventDefault();
+});
+document.addEventListener("mousemove", (e) => {
+  if (!resizeState) return;
+  const rect = resizeState.container.getBoundingClientRect();
+  let pct = ((e.clientX - rect.left) / rect.width) * 100;
+  pct = Math.max(25, Math.min(75, pct));
+  resizeState.leftPane.style.flexBasis = pct + "%";
+});
+document.addEventListener("mouseup", () => {
+  if (!resizeState) return;
+  resizeState = null;
+  document.body.style.cursor = "";
+});
+
+let submitted = false;
+async function submitWriting(skipConfirm = false) {
+  if (submitted) return;
+  saveCurrentEssay();
+
+  const essays = exam.tasks.map((t) => ({ taskOrder: t.order, essayText: (essayValues[t.order] || "").trim() }));
+  const tooShort = essays.find((e) => e.essayText.length < 10);
+  if (tooShort) {
+    document.getElementById("error").textContent = `Task ${tooShort.taskOrder} chưa viết đủ (quá ngắn).`;
+    return;
+  }
+  if (!skipConfirm && !confirm("Bạn chắc chắn muốn nộp bài chứ?")) return;
+
+  submitted = true;
+  if (timerHandle) clearInterval(timerHandle);
+  document.getElementById("submit-btn").disabled = true;
+
+  try {
+    await Api.call("submit-writing", { method: "POST", body: { examRecordId, essays } });
+    document.getElementById("success").textContent = "Đã nộp bài! Chờ admin chấm điểm — xem kết quả tại trang Lịch sử.";
+    document.getElementById("error").textContent = "";
+    document.querySelectorAll("#essay, #submit-btn, #prev-btn, #next-btn").forEach((el) => (el.disabled = true));
+  } catch (err) {
+    document.getElementById("error").textContent = err.message;
+    submitted = false;
+    document.getElementById("submit-btn").disabled = false;
+  }
+}
+
+init();
+</script>
+</body>
+</html>

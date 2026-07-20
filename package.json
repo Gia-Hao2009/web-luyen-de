@@ -1,0 +1,12 @@
+{
+  "name": "ielts-thpt-practice",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web luyen de IELTS Reading/Writing va THPT Reading, host tren Netlify, du lieu luu Airtable",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@netlify/functions": "^2.8.1"
+  }
+}

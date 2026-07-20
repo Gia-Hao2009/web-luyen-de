@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — Hiệu suất học sinh</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span> · Admin</div>
+  <nav id="admin-nav"></nav>
+</header>
+
+<main class="container container-wide">
+  <h1>Hiệu suất học sinh</h1>
+  <p class="muted">Bấm vào tên học sinh để xem chi tiết từng loại đề.</p>
+
+  <table>
+    <thead><tr><th>Username</th><th>Số lượt làm Reading</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <div id="detail"></div>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/admin-common.js"></script>
+<script>
+if (adminGuard()) {
+  renderAdminNav("/admin/performance.html");
+  loadStudents();
+}
+
+let students = [];
+
+async function loadStudents() {
+  try {
+    const { students: list } = await Api.call("admin-list-students");
+    students = list;
+    document.getElementById("rows").innerHTML = students.length ? students.map((s, i) => `
+      <tr>
+        <td><strong>${s.username}</strong></td>
+        <td>${s.attemptCount}</td>
+        <td><button class="secondary" data-idx="${i}" onclick="viewPerformance(${i})">Xem hiệu suất →</button></td>
+      </tr>
+    `).join("") : `<tr><td colspan="3" class="muted">Chưa có học sinh nào.</td></tr>`;
+  } catch (err) {
+    document.getElementById("rows").innerHTML = `<tr><td colspan="3" class="error-msg">${err.message}</td></tr>`;
+  }
+}
+
+function formatMMSS(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds || 0));
+  const m = Math.floor(s / 60).toString().padStart(2, "0");
+  const sec = (s % 60).toString().padStart(2, "0");
+  return `${m}:${sec}`;
+}
+
+function lineChartSvg(points, valueKey, maxValue, colorVar) {
+  if (!points || points.length === 0) {
+    return `<p class="muted" style="margin-top:10px;">Chưa có dữ liệu để vẽ biểu đồ.</p>`;
+  }
+  const w = 560, h = 180, padL = 30, padR = 10, padT = 10, padB = 24;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const n = points.length;
+  const x = (i) => padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const y = (v) => padT + innerH - (Math.max(0, Math.min(maxValue, v)) / maxValue) * innerH;
+
+  const linePoints = points.map((p, i) => `${x(i).toFixed(1)},${y(p[valueKey]).toFixed(1)}`).join(" ");
+  const dots = points.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p[valueKey]).toFixed(1)}" r="3.5" fill="${colorVar}" />`).join("");
+  const gridLines = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+    const gy = padT + innerH * (1 - f);
+    return `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${w - padR}" y2="${gy.toFixed(1)}" stroke="var(--border)" stroke-width="1" />
+      <text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" font-size="9" fill="var(--text-muted)" text-anchor="end">${Math.round(maxValue * f)}</text>`;
+  }).join("");
+  const firstLabel = new Date(points[0].date).toLocaleDateString("vi-VN");
+  const lastLabel = new Date(points[n - 1].date).toLocaleDateString("vi-VN");
+
+  return `
+    <svg width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px;">
+      ${gridLines}
+      <polyline points="${linePoints}" fill="none" stroke="${colorVar}" stroke-width="2" />
+      ${dots}
+      <text x="${padL}" y="${h - 4}" font-size="9" fill="var(--text-muted)">${firstLabel}</text>
+      <text x="${w - padR}" y="${h - 4}" font-size="9" fill="var(--text-muted)" text-anchor="end">${lastLabel}</text>
+    </svg>`;
+}
+
+function readingPanelHtml(title, stats, colorVar, useScore10) {
+  const scoreLabel = useScore10
+    ? (stats.averageScore10 !== null ? `${stats.averageScore10}/10` : "--")
+    : (stats.averageBand !== null ? `Band ${stats.averageBand}/9.0` : (stats.averageScorePct !== null ? `${stats.averageScorePct}%` : "--"));
+  const chart = stats.history.length
+    ? lineChartSvg(stats.history, "scorePct", 100, colorVar)
+    : `<p class="muted" style="margin-top:10px;">Chưa có lượt làm nào.</p>`;
+  const skillRows = stats.skillStats.length
+    ? stats.skillStats.map((s) => `<tr><td>${s.tag}</td><td>${s.correct}/${s.total}</td><td style="color:${s.accuracyPct < 50 ? "var(--wrong)" : "var(--text)"};font-weight:700;">${s.accuracyPct}%</td></tr>`).join("")
+    : `<tr><td colspan="3" class="muted">Chưa có dữ liệu.</td></tr>`;
+
+  return `
+    <div class="card">
+      <h2 style="margin-top:0;">${title}</h2>
+      <div class="grid-4">
+        <div class="card" style="margin:0;padding:12px;text-align:center;"><div class="muted">Tổng lượt làm</div><div style="font-size:1.3rem;font-weight:700;">${stats.totalTests}</div></div>
+        <div class="card" style="margin:0;padding:12px;text-align:center;"><div class="muted">Điểm TB</div><div style="font-size:1.3rem;font-weight:700;">${scoreLabel}</div></div>
+        <div class="card" style="margin:0;padding:12px;text-align:center;"><div class="muted">Thời gian TB</div><div style="font-size:1.3rem;font-weight:700;">${formatMMSS(stats.averageElapsedSeconds)}</div></div>
+        <div class="card" style="margin:0;padding:12px;text-align:center;"><div class="muted">% đúng TB</div><div style="font-size:1.3rem;font-weight:700;">${stats.averageScorePct !== null ? stats.averageScorePct + "%" : "--"}</div></div>
+      </div>
+      <div style="margin-top:14px;">${chart}</div>
+      <div class="section-title">Độ chính xác theo dạng câu hỏi</div>
+      <table>
+        <thead><tr><th>Dạng câu hỏi</th><th>Đúng/Tổng</th><th>Độ chính xác</th></tr></thead>
+        <tbody>${skillRows}</tbody>
+      </table>
+    </div>`;
+}
+
+function writingPanelHtml(stats) {
+  const chart = stats.history.length
+    ? lineChartSvg(stats.history, "overall", 9, "var(--accent)")
+    : `<p class="muted" style="margin-top:10px;">Chưa có bài nào được chấm.</p>`;
+
+  const taskBlocks = stats.tasks.length
+    ? stats.tasks.map((t) => `
+        <div class="section-title">Task ${t.taskOrder}</div>
+        <div class="grid-4">
+          <div class="card" style="margin:0;padding:12px;text-align:center;"><div class="muted">TA</div><div style="font-size:1.2rem;font-weight:700;">${t.averageTA}</div></div>
+          <div class="card" style="margin:0;padding:12px;text-align:center;"><div class="muted">CC</div><div style="font-size:1.2rem;font-weight:700;">${t.averageCC}</div></div>
+          <div class="card" style="margin:0;padding:12px;text-align:center;"><div class="muted">LR</div><div style="font-size:1.2rem;font-weight:700;">${t.averageLR}</div></div>
+          <div class="card" style="margin:0;padding:12px;text-align:center;"><div class="muted">GRA</div><div style="font-size:1.2rem;font-weight:700;">${t.averageGRA}</div></div>
+        </div>
+        <p class="muted" style="margin-top:6px;">Overall TB Task ${t.taskOrder}: <strong style="color:var(--text);">${t.averageOverall}</strong></p>
+      `).join("")
+    : `<p class="muted" style="margin-top:10px;">Chưa có task nào được chấm.</p>`;
+
+  return `
+    <div class="card">
+      <h2 style="margin-top:0;">IELTS Writing</h2>
+      <div class="grid-4">
+        <div class="card" style="margin:0;padding:12px;text-align:center;"><div class="muted">Tổng bài nộp</div><div style="font-size:1.3rem;font-weight:700;">${stats.totalTests}</div></div>
+        <div class="card" style="margin:0;padding:12px;text-align:center;grid-column:span 3;"><div class="muted">Overall TB (đã tính trọng số Task 1×⅓ + Task 2×⅔)</div><div style="font-size:1.3rem;font-weight:700;">${stats.averageOverall ?? "--"}</div></div>
+      </div>
+      ${taskBlocks}
+      <div style="margin-top:14px;">${chart}</div>
+    </div>`;
+}
+
+async function viewPerformance(idx) {
+  const s = students[idx];
+  const detailEl = document.getElementById("detail");
+  detailEl.innerHTML = `<p class="muted">Đang tải hiệu suất của ${s.username}...</p>`;
+  try {
+    const data = await Api.call(`admin-student-performance?studentId=${s.id}`);
+    detailEl.innerHTML = `
+      <h2 style="margin-top:24px;">Hiệu suất — ${data.username}</h2>
+      ${readingPanelHtml("IELTS Reading", data.categories["IELTS Reading"], "var(--correct)", false)}
+      ${readingPanelHtml("THPT Reading", data.categories["THPT Reading"], "var(--accent-2)", true)}
+      ${writingPanelHtml(data.categories["IELTS Writing"])}
+    `;
+  } catch (err) {
+    detailEl.innerHTML = `<p class="error-msg">${err.message}</p>`;
+  }
+}
+</script>
+</body>
+</html>

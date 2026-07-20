@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — Đăng nhập</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span> · Admin</div>
+  <nav><a href="/index.html">← Về trang chính</a></nav>
+</header>
+
+<main class="container" style="max-width:420px;">
+  <div class="card">
+    <h2>Đăng nhập Admin</h2>
+    <label>Username</label>
+    <input type="text" id="username" />
+    <label>Password</label>
+    <input type="password" id="password" />
+    <div class="error-msg" id="error"></div>
+    <button style="margin-top:14px;" onclick="doLogin()">Đăng nhập</button>
+    <p class="muted" style="margin-top:14px;text-align:center;"><a href="/admin/register.html">Chưa có tài khoản admin? Đăng ký</a></p>
+  </div>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script>
+async function doLogin() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+  const errEl = document.getElementById("error");
+  errEl.textContent = "";
+  try {
+    const data = await Api.call("admin-login", { method: "POST", body: { username, password } });
+    Api.setAdminSession(data.token, data.username);
+    location.href = "/index.html";
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+</script>
+</body>
+</html>

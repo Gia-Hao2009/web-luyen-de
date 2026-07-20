@@ -1,0 +1,13 @@
+Day la thu muc VI DU, ban co the xoa thu muc nay.
+
+Cach dung that: moi de co anh (bieu do, hinh ve...) thi tao 1 thu muc rieng trong
+public/exam-images/, dat ten trung voi examId cua de (vd: ielts-reading-1-abc123),
+roi bo cac file anh (.png/.jpg) vao trong do.
+
+Trong PassageHtml (hoac Prompt) cua de, chen anh bang duong dan tuong doi bat dau
+tu /exam-images/..., vi du:
+
+<img src="/exam-images/ielts-reading-1-abc123/chart1.png" alt="Bieu do 1" />
+
+Vi day la file tinh (static), sau khi them anh moi thi phai deploy lai (hoac
+chay lai netlify dev de thay ngay khi test local) thi anh moi hien ra.

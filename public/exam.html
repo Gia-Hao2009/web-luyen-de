@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Làm bài — Luyện Đề</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span></div>
+  <nav id="nav-links"></nav>
+</header>
+
+<main class="container container-wide">
+  <div id="guard-msg" class="card" style="display:none;">
+    <p>Bạn cần <a href="/auth.html">đăng nhập</a> để làm bài.</p>
+  </div>
+
+  <div id="exam-wrap" style="display:none;">
+    <h1 id="exam-title"></h1>
+    <div id="timer" class="timer"></div>
+
+    <div class="exam-layout" id="passages-and-questions">
+      <div class="passage-col" id="passage-col" contenteditable="true" spellcheck="false"></div>
+      <div class="questions-col" id="questions-col"></div>
+    </div>
+
+    <div class="error-msg" id="submit-error"></div>
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+      <button id="toggle-answers-btn" class="secondary" style="display:none;" onclick="toggleAnswers()">Xem đáp án</button>
+      <button id="submit-btn" onclick="submitExam()">Nộp bài</button>
+    </div>
+  </div>
+</main>
+
+<div id="selection-toolbar" class="selection-toolbar">
+  <button type="button" class="mark-btn hl" title="Highlight" onmousedown="event.preventDefault()" onclick="applyHighlight()">A</button>
+  <button type="button" class="mark-btn st" title="Gạch chữ" onmousedown="event.preventDefault()" onclick="applyStrike()">A</button>
+</div>
+
+<div id="remove-mark-menu" class="remove-highlight-menu">
+  <button type="button" onclick="removeMarkAtTarget()">✕ Xoá highlight/gạch</button>
+</div>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/nav.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const examRecordId = params.get("id");
+let exam = null;
+let timeLeftSec = null;
+let timerHandle = null;
+let isAdminView = false;
+let examStartedAt = null;
+
+async function init() {
+  if (!Api.studentToken() && !Api.adminToken()) {
+    document.getElementById("guard-msg").style.display = "block";
+    return;
+  }
+  isAdminView = !Api.studentToken() && !!Api.adminToken();
+  if (!examRecordId) return;
+
+  try {
+    const { exam: e } = await Api.call(`get-exam?id=${encodeURIComponent(examRecordId)}`);
+    exam = e;
+    document.getElementById("exam-title").textContent = exam.title;
+    renderPassagesAndQuestions(exam.passages || [], exam.questions || []);
+    document.getElementById("exam-wrap").style.display = "block";
+    examStartedAt = Date.now();
+
+    if (isAdminView) {
+      document.getElementById("toggle-answers-btn").style.display = "inline-block";
+    }
+
+    if (exam.timeLimitMinutes && exam.timeLimitMinutes > 0) {
+      timeLeftSec = exam.timeLimitMinutes * 60;
+      startTimer();
+    } else {
+      document.getElementById("timer").textContent = "Không giới hạn thời gian";
+    }
+  } catch (err) {
+    document.getElementById("submit-error").textContent = err.message;
+  }
+}
+
+function startTimer() {
+  updateTimerDisplay();
+  timerHandle = setInterval(() => {
+    timeLeftSec -= 1;
+    updateTimerDisplay();
+    if (timeLeftSec <= 0) {
+      clearInterval(timerHandle);
+      submitExam(true);
+    }
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(timeLeftSec / 60).toString().padStart(2, "0");
+  const s = (timeLeftSec % 60).toString().padStart(2, "0");
+  const el = document.getElementById("timer");
+  el.textContent = `Còn lại: ${m}:${s}`;
+  el.classList.toggle("low", timeLeftSec <= 60);
+}
+
+function renderQuestionBlock(q, displayIndex) {
+  let inputHtml = "";
+  if (q.type === "mc" || q.type === "tf") {
+    const options = q.options || (q.type === "tf" ? ["True", "False"] : []);
+    inputHtml = options.map((opt) => `
+      <label class="option-row">
+        <input type="radio" name="q_${q.id}" value="${escapeAttr(opt)}" />
+        <span>${opt}</span>
+      </label>`).join("");
+  } else {
+    inputHtml = `<input type="text" name="q_${q.id}" maxlength="${q.maxLength || 50}" placeholder="Nhập đáp án" />`;
+  }
+  const answerNote = (isAdminView && q.correctAnswer !== undefined)
+    ? `<div class="admin-answer-note"><strong>Đáp án:</strong> ${q.correctAnswer}${q.explanation ? ` — ${q.explanation}` : ""}</div>`
+    : "";
+  return `
+    <div class="question-block">
+      <div class="q-text">Câu ${displayIndex}. ${q.questionText}</div>
+      ${inputHtml}
+      ${answerNote}
+    </div>`;
+}
+
+function toggleAnswers() {
+  const wrap = document.getElementById("passages-and-questions");
+  const btn = document.getElementById("toggle-answers-btn");
+  const showing = wrap.classList.toggle("show-answers");
+  btn.textContent = showing ? "Ẩn đáp án" : "Xem đáp án";
+}
+
+function stripKeywordMarks(html) {
+  return String(html || "").replace(/<\/?mark[^>]*>/gi, "");
+}
+
+function renderPassagesAndQuestions(passages, questions) {
+  const passageCol = document.getElementById("passage-col");
+  const questionsCol = document.getElementById("questions-col");
+
+  // Danh so cau hoi lien tuc xuyen suot cac passage (Cau 1, 2, 3... khong reset theo tung passage)
+  const displayIndexByQuestionId = {};
+  questions.forEach((q, idx) => { displayIndexByQuestionId[q.id] = idx + 1; });
+
+  const passageList = passages.length ? passages : [{ order: 1, title: "", html: "" }];
+  const sortedPassages = passageList.slice().sort((a, b) => a.order - b.order);
+
+  passageCol.innerHTML = sortedPassages.map((p) => {
+    const passageTitle = p.title ? `<h2>${p.title}</h2>` : (sortedPassages.length > 1 ? `<h2>Passage ${p.order}</h2>` : "");
+    return `${passageTitle}<div>${stripKeywordMarks(p.html) || "<p class='muted'>(Không có đoạn văn)</p>"}</div>`;
+  }).join("<hr style='border-color:var(--border);margin:20px 0;'/>");
+
+  questionsCol.innerHTML = sortedPassages.map((p) => {
+    const passageQuestions = questions.filter((q) => (q.passageOrder || 1) === p.order);
+    const groupTitle = sortedPassages.length > 1 ? `<h2>Câu hỏi — Passage ${p.order}</h2>` : "";
+    return `${groupTitle}<div>${passageQuestions.map((q) => renderQuestionBlock(q, displayIndexByQuestionId[q.id])).join("")}</div>`;
+  }).join("");
+}
+
+function escapeAttr(s) { return String(s).replace(/"/g, "&quot;"); }
+
+function collectAnswers() {
+  const answers = {};
+  (exam.questions || []).forEach((q) => {
+    if (q.type === "mc" || q.type === "tf") {
+      const checked = document.querySelector(`input[name="q_${q.id}"]:checked`);
+      answers[q.id] = checked ? checked.value : "";
+    } else {
+      const input = document.querySelector(`input[name="q_${q.id}"]`);
+      answers[q.id] = input ? input.value : "";
+    }
+  });
+  return answers;
+}
+
+let submitted = false;
+async function submitExam(skipConfirm = false) {
+  if (submitted) return;
+
+  const answers = collectAnswers();
+  if (!skipConfirm) {
+    const total = (exam.questions || []).length;
+    const missing = Object.values(answers).filter((v) => !v).length;
+    if (missing > 0) {
+      if (!confirm(`Bạn còn thiếu ${missing}/${total} câu chưa trả lời. Vẫn muốn nộp bài?`)) return;
+    } else {
+      if (!confirm("Bạn chắc chắn muốn nộp bài chứ?")) return;
+    }
+  }
+
+  submitted = true;
+  if (timerHandle) clearInterval(timerHandle);
+  document.getElementById("submit-btn").disabled = true;
+
+  try {
+    const elapsedSeconds = examStartedAt ? Math.round((Date.now() - examStartedAt) / 1000) : 0;
+    const result = await Api.call("submit-attempt", {
+      method: "POST",
+      body: { examRecordId, answers, elapsedSeconds },
+    });
+    sessionStorage.setItem("last_result", JSON.stringify({ ...result, examTitle: exam.title }));
+    location.href = `/review.html?attempt=${result.attemptId}`;
+  } catch (err) {
+    document.getElementById("submit-error").textContent = err.message;
+    submitted = false;
+    document.getElementById("submit-btn").disabled = false;
+  }
+}
+
+// === Cong cu highlight (vang) + gach doi chu tren doan van ===
+const HIGHLIGHT_COLOR = "#fde047";
+
+function setupPassageAnnotations() {
+  const passageCol = document.getElementById("passage-col");
+  const toolbar = document.getElementById("selection-toolbar");
+  const removeMenu = document.getElementById("remove-mark-menu");
+
+  // Khong cho go/xoa/paste chu trong doan van, chi cho phep bo den + copy
+  passageCol.addEventListener("keydown", (e) => {
+    const isCopy = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c";
+    const isSelectAll = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a";
+    if (!isCopy && !isSelectAll) e.preventDefault();
+  });
+  passageCol.addEventListener("paste", (e) => e.preventDefault());
+  passageCol.addEventListener("drop", (e) => e.preventDefault());
+
+  document.addEventListener("mouseup", () => {
+    const sel = window.getSelection();
+    const text = sel.toString().trim();
+    if (!text || sel.rangeCount === 0 || !passageCol.contains(sel.anchorNode)) {
+      toolbar.style.display = "none";
+      return;
+    }
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    toolbar.style.display = "flex";
+    toolbar.style.top = `${window.scrollY + rect.top - 42}px`;
+    toolbar.style.left = `${window.scrollX + rect.left}px`;
+  });
+
+  passageCol.addEventListener("contextmenu", (e) => {
+    let el = e.target;
+    while (el && el !== passageCol) {
+      const isHighlight = el.style && el.style.backgroundColor;
+      const isStrike = el.tagName === "STRIKE" || el.tagName === "S" ||
+        (el.style && el.style.textDecorationLine && el.style.textDecorationLine.includes("line-through"));
+      if (isHighlight || isStrike) {
+        e.preventDefault();
+        removeMenu._targetEl = el;
+        removeMenu.style.display = "block";
+        removeMenu.style.top = `${window.scrollY + e.clientY}px`;
+        removeMenu.style.left = `${window.scrollX + e.clientX}px`;
+        return;
+      }
+      el = el.parentElement;
+    }
+    removeMenu.style.display = "none";
+  });
+
+  document.addEventListener("mousedown", (e) => {
+    if (!removeMenu.contains(e.target)) removeMenu.style.display = "none";
+  });
+}
+
+function applyHighlight() {
+  document.execCommand("hiliteColor", false, HIGHLIGHT_COLOR);
+  document.getElementById("selection-toolbar").style.display = "none";
+}
+
+function applyStrike() {
+  document.execCommand("strikeThrough");
+  document.getElementById("selection-toolbar").style.display = "none";
+}
+
+function removeMarkAtTarget() {
+  const removeMenu = document.getElementById("remove-mark-menu");
+  const el = removeMenu._targetEl;
+  if (el && el.parentNode) {
+    while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+    el.parentNode.removeChild(el);
+  }
+  removeMenu.style.display = "none";
+}
+
+setupPassageAnnotations();
+init();
+</script>
+</body>
+</html>

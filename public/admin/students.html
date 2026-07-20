@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — Học sinh</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span> · Admin</div>
+  <nav id="admin-nav"></nav>
+</header>
+
+<main class="container">
+  <h1>Quản lý tài khoản học sinh</h1>
+  <table>
+    <thead><tr><th>Username</th><th>Ngày tạo</th><th>Số lượt làm bài</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/admin-common.js"></script>
+<script>
+if (adminGuard()) {
+  renderAdminNav("/admin/students.html");
+  load();
+}
+
+async function load() {
+  try {
+    const { students } = await Api.call("admin-list-students");
+    document.getElementById("rows").innerHTML = students.map((s) => `
+      <tr>
+        <td>${s.username}</td>
+        <td class="muted">${new Date(s.createdAt).toLocaleDateString("vi-VN")}</td>
+        <td>${s.attemptCount}</td>
+        <td><button class="danger" onclick="removeStudent('${s.id}','${s.username}')">Xóa</button></td>
+      </tr>
+    `).join("") || `<tr><td colspan="4" class="muted">Chưa có học sinh nào.</td></tr>`;
+  } catch (err) {
+    document.getElementById("rows").innerHTML = `<tr><td colspan="4" class="error-msg">${err.message}</td></tr>`;
+  }
+}
+
+async function removeStudent(id, username) {
+  if (!confirm(`Xóa tài khoản "${username}"?`)) return;
+  try {
+    await Api.call(`admin-list-students?id=${id}`, { method: "DELETE" });
+    load();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+</script>
+</body>
+</html>

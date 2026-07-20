@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tài khoản của tôi — Luyện Đề</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span></div>
+  <nav id="nav-links"></nav>
+</header>
+
+<main class="container">
+  <div id="guard-msg" class="card" style="display:none;">
+    <p>Bạn cần <a href="/auth.html">đăng nhập</a> để xem trang này.</p>
+  </div>
+
+  <div id="wrap" style="display:none;">
+    <h1>Tài khoản của tôi</h1>
+
+    <div class="card">
+      <div class="section-title" style="margin-top:0;">Thông tin tài khoản</div>
+      <p>Tên đăng nhập: <strong id="username-display"></strong></p>
+      <button class="secondary" onclick="doLogout()">Đăng xuất</button>
+    </div>
+
+    <div class="card" id="pw-card">
+      <div class="section-title" style="margin-top:0;">Đổi mật khẩu</div>
+      <label>Mật khẩu hiện tại</label>
+      <input type="password" id="old-password" />
+      <label>Mật khẩu mới (tối thiểu 4 ký tự)</label>
+      <input type="password" id="new-password" />
+      <div class="error-msg" id="pw-error"></div>
+      <div class="success-msg" id="pw-success"></div>
+      <button style="margin-top:12px;" onclick="changePassword()">Đổi mật khẩu</button>
+    </div>
+
+    <div class="section-title">Reading đã làm</div>
+    <div id="attempts" class="history-list"></div>
+
+    <div class="section-title" id="writings-title">Writing đã nộp</div>
+    <div id="writings"></div>
+  </div>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/nav.js"></script>
+<script>
+function doLogout() {
+  if (Api.studentToken()) Api.clearStudentSession();
+  else Api.clearAdminSession();
+  location.href = "/index.html";
+}
+
+function formatMMSS(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds || 0));
+  const m = Math.floor(s / 60).toString().padStart(2, "0");
+  const sec = (s % 60).toString().padStart(2, "0");
+  return `${m}:${sec}`;
+}
+
+// Bang quy doi diem tho -> band IELTS Reading (uoc tinh, chi ap dung khi de du 40 cau)
+const IELTS_READING_BAND_TABLE = [
+  { min: 39, band: 9.0 }, { min: 37, band: 8.5 }, { min: 35, band: 8.0 },
+  { min: 33, band: 7.5 }, { min: 30, band: 7.0 }, { min: 27, band: 6.5 },
+  { min: 23, band: 6.0 }, { min: 19, band: 5.5 }, { min: 15, band: 5.0 },
+  { min: 13, band: 4.5 }, { min: 10, band: 4.0 }, { min: 8, band: 3.5 },
+  { min: 6, band: 3.0 }, { min: 4, band: 2.5 },
+];
+function estimateBand(score) {
+  const row = IELTS_READING_BAND_TABLE.find((r) => score >= r.min);
+  return row ? row.band : 2.0;
+}
+
+async function changePassword() {
+  const oldPassword = document.getElementById("old-password").value;
+  const newPassword = document.getElementById("new-password").value;
+  const errEl = document.getElementById("pw-error");
+  const okEl = document.getElementById("pw-success");
+  errEl.textContent = "";
+  okEl.textContent = "";
+  try {
+    await Api.call("change-password", { method: "POST", body: { oldPassword, newPassword } });
+    okEl.textContent = "Đổi mật khẩu thành công.";
+    document.getElementById("old-password").value = "";
+    document.getElementById("new-password").value = "";
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+
+async function init() {
+  const isStudent = !!Api.studentToken();
+  const isAdmin = !isStudent && !!Api.adminToken();
+  if (!isStudent && !isAdmin) {
+    document.getElementById("guard-msg").style.display = "block";
+    return;
+  }
+  document.getElementById("wrap").style.display = "block";
+  document.getElementById("username-display").textContent = Api.studentUsername() || Api.adminUsername();
+
+  if (isAdmin) {
+    document.getElementById("pw-card").style.display = "none";
+    document.getElementById("writings-title").style.display = "none";
+    document.getElementById("writings").style.display = "none";
+  }
+
+  try {
+    const { attempts, writings } = await Api.call("get-history");
+
+    const attemptsEl = document.getElementById("attempts");
+    renderAttempts(attempts);
+
+    function renderAttempts(list) {
+      attemptsEl.innerHTML = list.length ? list.map((a) => {
+        const pct = a.total ? a.score / a.total : 0;
+        const scoreColor = pct >= 0.65 ? "var(--correct)" : pct >= 0.4 ? "var(--accent-2)" : "var(--wrong)";
+        const scoreBg = pct >= 0.65 ? "var(--correct-bg)" : pct >= 0.4 ? "rgba(34, 211, 238, 0.15)" : "var(--wrong-bg)";
+        const timePart = a.timeLimitMinutes ? formatMMSS(a.elapsedSeconds) : formatMMSS(a.elapsedSeconds) + " (không giới hạn)";
+        const scoreText = a.category === "IELTS Reading" && a.total === 40
+          ? `Band ${estimateBand(a.score).toFixed(1)}`
+          : a.category === "THPT Reading"
+            ? `${(a.total ? (a.score / a.total) * 10 : 0).toFixed(2)}/10`
+            : `${a.score}/${a.total}`;
+        return `
+        <a class="history-item" href="/review.html?attempt=${a.id}" data-attempt-id="${a.id}">
+          <div>
+            <div class="title">${a.examTitle}</div>
+            <div class="meta">${new Date(a.submittedAt).toLocaleString("vi-VN")} · ⏱ ${timePart}</div>
+          </div>
+          <div class="history-actions">
+            <span class="score-pill" style="color:${scoreColor};background:${scoreBg};border-color:${scoreColor};">${scoreText}</span>
+            <button type="button" class="icon-btn delete-attempt-btn" data-attempt-id="${a.id}" title="Xoá bài làm này">🗑️</button>
+          </div>
+        </a>
+      `;
+      }).join("") : `<p class="muted">Chưa có bài Reading nào.</p>`;
+
+      attemptsEl.querySelectorAll(".history-item").forEach((el) => {
+        el.addEventListener("click", () => {
+          const a = list.find((x) => x.id === el.dataset.attemptId);
+          if (!a) return;
+          sessionStorage.setItem("last_result", JSON.stringify({
+            attemptId: a.id, examRecordId: a.examRecordId, score: a.score, total: a.total,
+            results: a.results, examTitle: a.examTitle, category: a.category, elapsedSeconds: a.elapsedSeconds,
+            timeLimitMinutes: a.timeLimitMinutes, passageCount: a.passageCount,
+          }));
+        });
+      });
+
+      attemptsEl.querySelectorAll(".delete-attempt-btn").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!confirm("Xoá bài làm này khỏi lịch sử?")) return;
+          try {
+            await Api.call("delete-attempt", { method: "POST", body: { attemptId: btn.dataset.attemptId } });
+            const idx = list.findIndex((x) => x.id === btn.dataset.attemptId);
+            if (idx !== -1) list.splice(idx, 1);
+            renderAttempts(list);
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+    }
+
+    const writingsEl = document.getElementById("writings");
+    writingsEl.innerHTML = writings.length ? writings.map((w) => {
+      const status = w.status === "graded" ? "Đã chấm" : "Chờ chấm";
+      const fb = w.feedback;
+      const fbHtml = fb ? `
+        <p style="margin-top:10px;"><strong>Overall: ${fb.overall}</strong></p>
+        ${fb.tasks.map((t) => `
+          <div class="section-title" style="margin-top:14px;">Task ${t.taskOrder}</div>
+          <div class="grid-4">
+            <div class="card" style="margin:0;padding:10px;text-align:center;"><div class="muted">TA</div><div>${t.ta}</div></div>
+            <div class="card" style="margin:0;padding:10px;text-align:center;"><div class="muted">CC</div><div>${t.cc}</div></div>
+            <div class="card" style="margin:0;padding:10px;text-align:center;"><div class="muted">LR</div><div>${t.lr}</div></div>
+            <div class="card" style="margin:0;padding:10px;text-align:center;"><div class="muted">GRA</div><div>${t.gra}</div></div>
+          </div>
+          <p style="margin-top:6px;">Overall Task ${t.taskOrder}: <strong>${t.overall}</strong></p>
+          <p class="muted">${t.comment || ""}</p>
+        `).join("")}
+      ` : `<p class="muted">Chưa có feedback.</p>`;
+      return `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;">
+            <strong>${w.examTitle}</strong>
+            <span class="badge">${status}</span>
+          </div>
+          <div class="meta muted">${new Date(w.submittedAt).toLocaleString("vi-VN")}</div>
+          ${fbHtml}
+        </div>
+      `;
+    }).join("") : `<p class="muted">Chưa nộp bài Writing nào.</p>`;
+  } catch (err) {
+    document.getElementById("attempts").innerHTML = `<p class="error-msg">${err.message}</p>`;
+  }
+}
+init();
+</script>
+</body>
+</html>

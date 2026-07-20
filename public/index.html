@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Luyện đề IELTS &amp; THPT</title>
+<script>
+  if (!localStorage.getItem("student_token") && !localStorage.getItem("admin_token")) {
+    location.href = "/auth.html";
+  }
+</script>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span></div>
+  <nav id="nav-links"></nav>
+</header>
+
+<main class="container">
+  <h1>Danh sách đề luyện tập</h1>
+  <p class="muted">Chọn chế độ ôn tập thích hợp nhất ngay bên dưới:</p>
+
+  <div class="mode-grid">
+    <a href="/category-reading.html" class="mode-card" style="--mode-color:#38bdf8;">
+      <div class="mode-title"><span class="mode-icon">📖</span>IELTS Reading</div>
+      <p class="mode-desc">Luyện đọc hiểu đoạn văn học thuật, trắc nghiệm &amp; điền từ, chấm điểm tự động ngay khi nộp bài.</p>
+      <span class="mode-cta">Bắt đầu ngay →</span>
+    </a>
+    <a href="/category-writing.html" class="mode-card" style="--mode-color:#fb923c;">
+      <div class="mode-title"><span class="mode-icon">✍️</span>IELTS Writing</div>
+      <p class="mode-desc">Luyện viết luận theo đề thật, nộp bài và nhận feedback chi tiết theo 4 tiêu chí từ giáo viên.</p>
+      <span class="mode-cta">Bắt đầu ngay →</span>
+    </a>
+    <a href="/category-thpt.html" class="mode-card" style="--mode-color:#f472b6;">
+      <div class="mode-title"><span class="mode-icon">🎓</span>THPT Reading</div>
+      <p class="mode-desc">Luyện đọc hiểu tiếng Anh theo format đề thi THPT Quốc gia, có giải thích chi tiết từng câu.</p>
+      <span class="mode-cta">Bắt đầu ngay →</span>
+    </a>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <span>Luyện đề IELTS &amp; THPT — dữ liệu lưu tối đa 15 ngày</span>
+  <a href="/admin/login.html" class="admin-link">Quản trị viên</a>
+</footer>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/nav.js"></script>
+</body>
+</html>

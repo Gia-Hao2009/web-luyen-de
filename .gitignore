@@ -1,0 +1,18 @@
+node_modules/
+.env
+.netlify/
+dist/
+*.log
+
+# File/thu muc khong thuoc project Luyen De (rac workspace chung)
+.claude/
+access.txt
+main.py
+deno.lock
+
+# Noi dung de goc (docx/pdf scan, co ban quyen) - khong day len repo public.
+# Web that khong can thu muc nay de chay (chi dung luc soan de local).
+# Giu lai README.md + exam-template.json (chi la huong dan quy trinh, khong phai noi dung de).
+exam-source/reading/
+exam-source/writing/
+exam-source/thpt/

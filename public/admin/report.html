@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — Report</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span> · Admin</div>
+  <nav id="admin-nav"></nav>
+</header>
+
+<main class="container">
+  <h1>Report hiệu suất theo học sinh</h1>
+  <table id="student-stats-table">
+    <thead><tr><th>Học sinh</th><th>Lượt làm Reading</th><th>Điểm TB (%)</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/admin-common.js"></script>
+<script>
+if (adminGuard()) {
+  renderAdminNav("/admin/report.html");
+  loadReport();
+}
+
+async function loadReport() {
+  try {
+    const { studentStats } = await Api.call("admin-report");
+    document.querySelector("#student-stats-table tbody").innerHTML = studentStats
+      .sort((a, b) => b.averageScorePct - a.averageScorePct)
+      .map((s) => `<tr><td>${s.username}</td><td>${s.attempts}</td><td>${s.averageScorePct}%</td></tr>`)
+      .join("") || `<tr><td colspan="3" class="muted">Chưa có dữ liệu.</td></tr>`;
+  } catch (err) {
+    document.querySelector("#student-stats-table tbody").innerHTML = `<tr><td colspan="3" class="error-msg">${err.message}</td></tr>`;
+  }
+}
+</script>
+</body>
+</html>

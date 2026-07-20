@@ -1,0 +1,87 @@
+{
+  "_huong_dan": "Day la file mau. Khi Claude soan de tu file goc cua ban, no se tao ra 1 file 'exam.json' dung cau truc nay, dat trong thu muc rieng cua de do (vd exam-source/reading/de-so-1/exam.json), roi chay: node scripts/push-exam.js exam-source/reading/de-so-1. ExamId duoc sinh CO DINH tu duong dan thu muc (vd exam-source/reading/de-so-1 -> examId 'reading-de-so-1'), nen anh trong de co the tro thang toi /exam-images/<examId-nay>/ten-anh.png ngay tu luc soan, khong can biet ID ngau nhien nao khac. Sua de da day roi thi chay lai lenh cu, them --update vao cuoi.",
+
+  "_huong_dan_skillTag": "Moi cau hoi Reading/THPT nen co them field 'skillTag' (dang de bai IELTS thuc su, dung de thong ke do chinh xac theo dang cau trong trang Admin > Hieu suat) — vd: 'True/False/Not Given', 'Multiple Choice', 'Matching Information', 'Matching Headings', 'Matching Sentence Endings', 'Sentence Completion', 'Summary Completion', 'Table/Note/Flow-chart Completion', 'Short Answer Questions'. Claude tu chon tag phu hop khi soan de, khong can hoi lai.",
+
+  "title": "IELTS Reading Practice Test 1",
+  "category": "IELTS Reading",
+  "timeLimitMinutes": 60,
+  "passages": [
+    {
+      "order": 1,
+      "title": "Passage 1: Ten chu de",
+      "html": "<p>Noi dung doan van 1 o day. Co the dung <mark>tu khoa</mark> de to sang.</p><img src=\"/exam-images/reading-de-so-1/chart1.png\" alt=\"Bieu do 1\" />"
+    },
+    {
+      "order": 2,
+      "title": "Passage 2: Ten chu de khac",
+      "html": "<p>Noi dung doan van 2 o day.</p>"
+    }
+  ],
+  "questions": [
+    {
+      "order": 1,
+      "passageOrder": 1,
+      "type": "mc",
+      "questionText": "According to Passage 1, what is the main cause of X?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": "Option B",
+      "skillTag": "Multiple Choice",
+      "explanation": "Doan 2 cau 3 cua Passage 1 noi ro nguyen nhan chinh la ... nen dap an la B.",
+      "keywordHighlight": "main cause"
+    },
+    {
+      "order": 2,
+      "passageOrder": 2,
+      "type": "fill",
+      "questionText": "Complete the sentence: The experiment took place in ____.",
+      "maxLength": 20,
+      "correctAnswer": "1969",
+      "skillTag": "Sentence Completion",
+      "explanation": "So lieu nam duoc neu truc tiep trong doan 1 cua Passage 2.",
+      "keywordHighlight": "1969"
+    }
+  ],
+
+  "_vi_du_chi_1_passage_lam_bai_ngan": {
+    "title": "IELTS Reading Mini Test",
+    "category": "IELTS Reading",
+    "timeLimitMinutes": 30,
+    "passages": [
+      { "order": 1, "title": "", "html": "<p>...</p>" }
+    ],
+    "questions": [
+      { "order": 1, "passageOrder": 1, "type": "tf", "questionText": "...", "options": ["True", "False"], "correctAnswer": "True", "explanation": "...", "keywordHighlight": "..." }
+    ]
+  },
+
+  "_vi_du_de_thpt_reading": {
+    "title": "Đề thi thử THPT 2026 - Reading",
+    "category": "THPT Reading",
+    "timeLimitMinutes": 45,
+    "passages": [
+      { "order": 1, "title": "", "html": "..." }
+    ],
+    "questions": [
+      { "order": 1, "passageOrder": 1, "type": "mc", "questionText": "...", "options": ["A", "B", "C", "D"], "correctAnswer": "C", "explanation": "...", "keywordHighlight": "..." }
+    ]
+  },
+
+  "_vi_du_de_ielts_writing": {
+    "title": "IELTS Writing - Task 1 + Task 2",
+    "category": "IELTS Writing",
+    "timeLimitMinutes": 60,
+    "tasks": [
+      {
+        "order": 1,
+        "title": "Task 1",
+        "promptHtml": "<p>The chart below shows...</p><p>Summarise the information...</p><img src=\"/exam-images/writing-de-so-1/chart1.png\" alt=\"Bieu do\" />"
+      },
+      {
+        "order": 2,
+        "title": "Task 2",
+        "promptHtml": "<p>Some people think technology has made life more complex...</p><p>Write at least 250 words.</p>"
+      }
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — Dashboard</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span> · Admin</div>
+  <nav id="admin-nav"></nav>
+</header>
+
+<main class="container">
+  <h1>Dashboard</h1>
+  <p class="muted">Xin chào, <span id="who"></span></p>
+
+  <div class="grid-4" id="totals"></div>
+
+  <div class="section-title">Hoạt động gần đây (Reading/THPT)</div>
+  <table id="activity-table">
+    <thead><tr><th>Học sinh</th><th>Đề</th><th>Điểm</th><th>Thời gian dùng</th><th>Ngày làm</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/admin-common.js"></script>
+<script>
+if (adminGuard()) {
+  renderAdminNav("/admin/dashboard.html");
+  document.getElementById("who").textContent = Api.adminUsername();
+  loadTotals();
+  loadActivity();
+}
+
+function formatMMSS(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds || 0));
+  const m = Math.floor(s / 60).toString().padStart(2, "0");
+  const sec = (s % 60).toString().padStart(2, "0");
+  return `${m}:${sec}`;
+}
+
+async function loadTotals() {
+  try {
+    const { totals } = await Api.call("admin-report");
+    document.getElementById("totals").innerHTML = `
+      <div class="card" style="text-align:center;"><div class="muted">Đề</div><div style="font-size:1.6rem;">${totals.exams}</div></div>
+      <div class="card" style="text-align:center;"><div class="muted">Học sinh</div><div style="font-size:1.6rem;">${totals.students}</div></div>
+      <div class="card" style="text-align:center;"><div class="muted">Lượt làm Reading</div><div style="font-size:1.6rem;">${totals.attempts}</div></div>
+      <div class="card" style="text-align:center;"><div class="muted">Writing chờ chấm</div><div style="font-size:1.6rem;color:var(--wrong);">${totals.writingsPending}</div></div>
+    `;
+  } catch (err) {
+    document.getElementById("totals").innerHTML = `<p class="error-msg">${err.message}</p>`;
+  }
+}
+
+async function loadActivity() {
+  try {
+    const { activity } = await Api.call("admin-recent-activity");
+    document.querySelector("#activity-table tbody").innerHTML = activity.map((a, i) => {
+      const timePart = a.timeLimitMinutes ? formatMMSS(a.elapsedSeconds) : `${formatMMSS(a.elapsedSeconds)} (không giới hạn)`;
+      return `<tr>
+        <td>${a.username}</td>
+        <td>${a.examTitle}</td>
+        <td>${a.score}/${a.total}</td>
+        <td>${timePart}</td>
+        <td>${new Date(a.submittedAt).toLocaleString("vi-VN")}</td>
+        <td><a href="/review.html?attempt=${a.id}" data-idx="${i}" class="view-detail-link">Chi tiết →</a></td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="6" class="muted">Chưa có dữ liệu.</td></tr>`;
+
+    document.querySelectorAll(".view-detail-link").forEach((el) => {
+      el.addEventListener("click", () => {
+        const a = activity[Number(el.dataset.idx)];
+        sessionStorage.setItem("last_result", JSON.stringify({
+          attemptId: a.id, examRecordId: a.examRecordId, score: a.score, total: a.total,
+          results: a.results, examTitle: a.examTitle, category: a.category, elapsedSeconds: a.elapsedSeconds,
+          timeLimitMinutes: a.timeLimitMinutes, passageCount: a.passageCount,
+        }));
+      });
+    });
+  } catch (err) {
+    document.querySelector("#activity-table tbody").innerHTML = `<tr><td colspan="6" class="error-msg">${err.message}</td></tr>`;
+  }
+}
+</script>
+</body>
+</html>

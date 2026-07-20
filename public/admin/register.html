@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — Đăng ký</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span> · Admin</div>
+  <nav><a href="/admin/login.html">← Đăng nhập</a></nav>
+</header>
+
+<main class="container" style="max-width:420px;">
+  <div class="card">
+    <h2>Đăng ký tài khoản Admin</h2>
+    <p class="muted">Chỉ dành cho nội bộ — cần đúng mã PIN mới tạo được tài khoản.</p>
+    <label>Username</label>
+    <input type="text" id="username" />
+    <label>Password (tối thiểu 4 ký tự)</label>
+    <input type="password" id="password" />
+    <label>Mã PIN nội bộ</label>
+    <input type="password" id="pin" inputmode="numeric" />
+    <div class="error-msg" id="error"></div>
+    <button style="margin-top:14px;" onclick="doRegister()">Đăng ký</button>
+  </div>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script>
+async function doRegister() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+  const pin = document.getElementById("pin").value.trim();
+  const errEl = document.getElementById("error");
+  errEl.textContent = "";
+  try {
+    const data = await Api.call("admin-register", { method: "POST", body: { username, password, pin } });
+    Api.setAdminSession(data.token, data.username);
+    location.href = "/admin/dashboard.html";
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+</script>
+</body>
+</html>

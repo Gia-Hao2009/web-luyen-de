@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — Chấm Writing</title>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span> · Admin</div>
+  <nav id="admin-nav"></nav>
+</header>
+
+<main class="container">
+  <h1>Chấm bài Writing</h1>
+  <p class="muted">Bài luận được viết ở khu vực khác (vd. AI khác hỗ trợ phân tích) — ở đây chỉ nhập kết quả cuối cùng theo 4 tiêu chí IELTS.</p>
+
+  <div class="tabs" style="margin-bottom:16px;">
+    <button id="tab-pending" class="active" onclick="switchStatus('pending')">Chờ chấm</button>
+    <button id="tab-graded" onclick="switchStatus('graded')">Đã chấm</button>
+  </div>
+
+  <div id="list"></div>
+</main>
+
+<div id="selection-toolbar" class="selection-toolbar">
+  <button type="button" class="mark-btn hl" title="Highlight" onmousedown="event.preventDefault()" onclick="applyHighlight()">A</button>
+  <button type="button" class="mark-btn ul" title="Gạch chân" onmousedown="event.preventDefault()" onclick="applyUnderline()">A</button>
+  <button type="button" class="mark-btn st" title="Gạch ngang" onmousedown="event.preventDefault()" onclick="applyStrike()">A</button>
+</div>
+
+<div id="remove-mark-menu" class="remove-highlight-menu">
+  <button type="button" onclick="removeMarkAtTarget()">✕ Xoá highlight/gạch</button>
+</div>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/admin-common.js"></script>
+<script>
+let currentStatus = "pending";
+
+if (adminGuard()) {
+  renderAdminNav("/admin/grade.html");
+  load();
+}
+
+function switchStatus(status) {
+  currentStatus = status;
+  document.getElementById("tab-pending").classList.toggle("active", status === "pending");
+  document.getElementById("tab-graded").classList.toggle("active", status === "graded");
+  load();
+}
+
+function essaysBlockHtml(s) {
+  return `
+    <details style="margin-top:10px;">
+      <summary>Xem bài viết</summary>
+      ${s.essays.map((e) => `
+        <div style="margin-top:10px;">
+          <strong>Task ${e.taskOrder}</strong>
+          <div class="essay-view" contenteditable="true" spellcheck="false">${escapeHtml(e.essayText)}</div>
+        </div>
+      `).join("")}
+    </details>`;
+}
+
+function pendingCardHtml(s) {
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;">
+        <strong>${s.examTitle}</strong>
+        <span class="badge">${s.studentUsername}</span>
+      </div>
+      <div class="muted">${new Date(s.submittedAt).toLocaleString("vi-VN")}</div>
+      ${essaysBlockHtml(s)}
+
+      ${s.essays.map((e) => `
+        <div class="section-title">Chấm điểm — Task ${e.taskOrder}</div>
+        <div class="grid-4">
+          <div><label>TA</label><input type="number" min="0" max="9" step="0.5" id="ta_${s.id}_${e.taskOrder}" /></div>
+          <div><label>CC</label><input type="number" min="0" max="9" step="0.5" id="cc_${s.id}_${e.taskOrder}" /></div>
+          <div><label>LR</label><input type="number" min="0" max="9" step="0.5" id="lr_${s.id}_${e.taskOrder}" /></div>
+          <div><label>GRA</label><input type="number" min="0" max="9" step="0.5" id="gra_${s.id}_${e.taskOrder}" /></div>
+        </div>
+        <label>Comment — Task ${e.taskOrder}</label>
+        <textarea id="comment_${s.id}_${e.taskOrder}" rows="3"></textarea>
+      `).join("")}
+      <div class="error-msg" id="err_${s.id}"></div>
+      <button style="margin-top:10px;" onclick="gradeSubmission('${s.id}', ${JSON.stringify(s.essays.map((e) => e.taskOrder))})">Lưu điểm</button>
+    </div>
+  `;
+}
+
+function gradedCardHtml(s) {
+  const fb = s.feedback;
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;">
+        <strong>${s.examTitle}</strong>
+        <span class="badge">${s.studentUsername}</span>
+      </div>
+      <div class="muted">${new Date(s.submittedAt).toLocaleString("vi-VN")}</div>
+      ${essaysBlockHtml(s)}
+
+      ${fb ? `
+        <p style="margin-top:14px;"><strong>Overall (TA1×⅓ + TA2×⅔): ${fb.overall}</strong></p>
+        ${fb.tasks.map((t) => `
+          <div class="section-title">Task ${t.taskOrder}</div>
+          <div class="grid-4">
+            <div class="card" style="margin:0;padding:10px;text-align:center;"><div class="muted">TA</div><div>${t.ta}</div></div>
+            <div class="card" style="margin:0;padding:10px;text-align:center;"><div class="muted">CC</div><div>${t.cc}</div></div>
+            <div class="card" style="margin:0;padding:10px;text-align:center;"><div class="muted">LR</div><div>${t.lr}</div></div>
+            <div class="card" style="margin:0;padding:10px;text-align:center;"><div class="muted">GRA</div><div>${t.gra}</div></div>
+          </div>
+          <p style="margin-top:6px;">Overall Task ${t.taskOrder}: <strong>${t.overall}</strong></p>
+          <p class="muted">${t.comment || ""}</p>
+        `).join("")}
+      ` : `<p class="muted">Không tìm thấy điểm đã chấm.</p>`}
+    </div>
+  `;
+}
+
+async function load() {
+  try {
+    const { submissions } = await Api.call(`admin-list-writing?status=${currentStatus}`);
+    const emptyMsg = currentStatus === "pending" ? "Không còn bài nào chờ chấm." : "Chưa chấm bài nào.";
+    document.getElementById("list").innerHTML = submissions.length
+      ? submissions.map(currentStatus === "pending" ? pendingCardHtml : gradedCardHtml).join("")
+      : `<p class="muted">${emptyMsg}</p>`;
+  } catch (err) {
+    document.getElementById("list").innerHTML = `<p class="error-msg">${err.message}</p>`;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+// === Cong cu highlight/gach chan/gach ngang tren bai viet (danh dau khi doc de cham) ===
+document.addEventListener("keydown", (e) => {
+  if (!e.target.closest || !e.target.closest(".essay-view")) return;
+  const isCopy = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c";
+  const isSelectAll = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a";
+  if (!isCopy && !isSelectAll) e.preventDefault();
+});
+document.addEventListener("paste", (e) => {
+  if (e.target.closest && e.target.closest(".essay-view")) e.preventDefault();
+});
+document.addEventListener("drop", (e) => {
+  if (e.target.closest && e.target.closest(".essay-view")) e.preventDefault();
+});
+
+document.addEventListener("mouseup", () => {
+  const toolbar = document.getElementById("selection-toolbar");
+  const sel = window.getSelection();
+  const text = sel.toString().trim();
+  const anchorEl = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement);
+  if (!text || sel.rangeCount === 0 || !anchorEl || !anchorEl.closest(".essay-view")) {
+    toolbar.style.display = "none";
+    return;
+  }
+  const rect = sel.getRangeAt(0).getBoundingClientRect();
+  toolbar.style.display = "flex";
+  toolbar.style.top = `${window.scrollY + rect.top - 42}px`;
+  toolbar.style.left = `${window.scrollX + rect.left}px`;
+});
+
+document.addEventListener("contextmenu", (e) => {
+  const removeMenu = document.getElementById("remove-mark-menu");
+  const essayRoot = e.target.closest && e.target.closest(".essay-view");
+  if (!essayRoot) { removeMenu.style.display = "none"; return; }
+  let el = e.target;
+  while (el && el !== essayRoot) {
+    const isHighlight = el.style && el.style.backgroundColor;
+    const isStrike = el.tagName === "STRIKE" || el.tagName === "S" ||
+      (el.style && el.style.textDecorationLine && el.style.textDecorationLine.includes("line-through"));
+    const isUnderline = el.tagName === "U";
+    if (isHighlight || isStrike || isUnderline) {
+      e.preventDefault();
+      removeMenu._targetEl = el;
+      removeMenu.style.display = "block";
+      removeMenu.style.top = `${window.scrollY + e.clientY}px`;
+      removeMenu.style.left = `${window.scrollX + e.clientX}px`;
+      return;
+    }
+    el = el.parentElement;
+  }
+  removeMenu.style.display = "none";
+});
+
+document.addEventListener("mousedown", (e) => {
+  const removeMenu = document.getElementById("remove-mark-menu");
+  if (!removeMenu.contains(e.target)) removeMenu.style.display = "none";
+});
+
+function applyHighlight() {
+  document.execCommand("hiliteColor", false, "#fde047");
+  document.getElementById("selection-toolbar").style.display = "none";
+}
+function applyUnderline() {
+  document.execCommand("underline");
+  document.getElementById("selection-toolbar").style.display = "none";
+}
+function applyStrike() {
+  document.execCommand("strikeThrough");
+  document.getElementById("selection-toolbar").style.display = "none";
+}
+function removeMarkAtTarget() {
+  const removeMenu = document.getElementById("remove-mark-menu");
+  const el = removeMenu._targetEl;
+  if (el && el.parentNode) {
+    while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+    el.parentNode.removeChild(el);
+  }
+  removeMenu.style.display = "none";
+}
+
+async function gradeSubmission(id, taskOrders) {
+  const errEl = document.getElementById(`err_${id}`);
+  errEl.textContent = "";
+  const tasks = taskOrders.map((taskOrder) => ({
+    taskOrder,
+    ta: document.getElementById(`ta_${id}_${taskOrder}`).value,
+    cc: document.getElementById(`cc_${id}_${taskOrder}`).value,
+    lr: document.getElementById(`lr_${id}_${taskOrder}`).value,
+    gra: document.getElementById(`gra_${id}_${taskOrder}`).value,
+    comment: document.getElementById(`comment_${id}_${taskOrder}`).value,
+  }));
+  try {
+    await Api.call("admin-grade-writing", {
+      method: "POST",
+      body: { submissionId: id, tasks },
+    });
+    load();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+</script>
+</body>
+</html>

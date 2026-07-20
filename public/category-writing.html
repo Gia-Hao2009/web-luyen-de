@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IELTS Writing — Luyện Đề</title>
+<script>
+  if (!localStorage.getItem("student_token") && !localStorage.getItem("admin_token")) {
+    location.href = "/auth.html";
+  }
+</script>
+<link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Luyện<span>Đề</span></div>
+  <nav id="nav-links"></nav>
+</header>
+
+<main class="container">
+  <p class="muted"><a href="/index.html">← Trang chủ</a></p>
+  <h1>✍️ IELTS Writing</h1>
+  <p class="muted">Luyện viết luận theo đề thật, nộp bài và nhận feedback chi tiết theo 4 tiêu chí từ giáo viên.</p>
+
+  <div class="exam-list" id="exam-list" style="margin-top:24px;"></div>
+</main>
+
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/nav.js"></script>
+<script src="/assets/js/category-list.js"></script>
+<script>
+loadCategoryExams("IELTS Writing", (e) => `/writing.html?id=${e.id}`);
+</script>
+</body>
+</html>
