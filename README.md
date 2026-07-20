@@ -1,4 +1,43 @@
-# Luyện Đề IELTS & THPT
+# Luyện Đề — IELTS & THPT Practice Platform
+
+A free, self-hosted web app for practicing IELTS Reading/Writing and the English section of Vietnam's national high school exam (THPT), built and shipped solo while studying for my own IELTS retake and university applications.
+
+**Live site:** [taupe-marzipan-9ef314.netlify.app](https://taupe-marzipan-9ef314.netlify.app) · **Source:** this repository
+
+## Why I built this
+
+I'm a 12th grader in Vietnam prepping for IELTS (7.0 → targeting 8.0) and the THPT national exam, on the way toward a Computer Science degree. Most decent IELTS practice platforms are either paid, ad-cluttered, or built for a generic audience instead of the exact question formats THPT and IELTS actually use. I wanted something that:
+
+- Costs nothing to run or use — no subscriptions, no paid AI grading APIs, nothing my classmates would need to pay for.
+- Grades Reading automatically and lets a real person (me) give honest, criteria-based feedback on Writing, instead of pretending an LLM can replace an examiner.
+- Lets me drop in a real exam PDF/scan and have it turned into a clean, taggable, gradeable practice test in minutes — not hours of manual data entry.
+
+So I designed the product, made every UX and scoring-logic call, and pair-programmed the implementation with Claude (Anthropic's AI coding assistant) as my primary tool — directing the architecture, reviewing every change, debugging issues myself, and writing all exam content and grading rubrics by hand. Every non-trivial product decision made along the way is logged in [`PROJECT_NOTES.md`](./PROJECT_NOTES.md), which doubles as a running design log of the project.
+
+## What it does
+
+- **IELTS Reading** — 1–3 passage exams, auto-graded, with an estimated band score, a full answer-review replay (keyword highlighting, correct/wrong pills), and accuracy breakdowns by question type (Table Completion, True/False/Not Given, etc.).
+- **IELTS Writing** — Task 1 + Task 2, with a resizable split view for chart-based Task 1 prompts. Submissions are graded manually by an admin against the 4 real IELTS criteria (TA/CC/LR/GRA), weighted 1/3–2/3 the way the real exam is scored.
+- **THPT Reading** — full-length practice tests matching the real exam format (cloze passages, sentence reordering, reading comprehension), scored on the real 10-point scale.
+- **Admin tools** — a dashboard of recent activity, a per-student performance view (score trends over time, accuracy by question type, band/score estimates), and a Writing-grading queue with an in-browser highlighter for annotating essays while grading.
+- **Annotation tools** for students while taking a test: highlight and strike-through directly on the passage, same as marking up a paper copy.
+
+## How it's built
+
+A static frontend (`public/`) talking to serverless backend functions (`netlify/functions/`) hosted free on Netlify, with Airtable as the database — no server to maintain, no hosting bill. New exams are never uploaded through a browser form: I drop the source file into a local folder, and Claude converts it into structured exam data and pushes it straight to Airtable via script — the fastest content pipeline I could design for a one-person operation.
+
+| Layer | Choice | Why |
+|---|---|---|
+| Hosting | Netlify (free tier) | Static hosting + serverless functions in one place, generous free limits |
+| Database | Airtable (free tier) | No database ops, good enough at this scale, easy to inspect/fix by hand |
+| Auth | Custom HMAC tokens + scrypt hashing | No auth vendor dependency, small enough to fully understand and own |
+| Grading | Rule-based (Reading/THPT) + manual (Writing) | Accuracy over the appearance of automation |
+
+## What this project represents to me
+
+It's the first full product I've taken from "I have a problem" to "real people are using this to study" — including the parts that aren't glamorous: data modeling, auth, admin tooling, retention policy, bug triage from actual user reports. I write the specs, make the calls, and use AI the way I intend to use it long-term as a future engineer: as leverage, not a replacement for understanding what I'm shipping.
+
+---
 
 Đây là hướng dẫn để đưa web này lên mạng, viết cho người **chưa từng làm việc này bao giờ**. Cứ làm theo đúng thứ tự từ trên xuống, đừng nhảy cóc.
 
