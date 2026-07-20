@@ -204,3 +204,20 @@ File này ghi lại các quyết định đã chốt với chủ dự án, để
 - `admin-register.js`: nhận `username/password/pin`, check PIN đúng, check username chưa tồn tại trong `AdminAccounts`, hash mật khẩu, tạo record, trả token đăng nhập luôn (auto-login sau khi đăng ký, giống `register.js` bên học sinh) — token admin hết hạn 7 ngày như `admin-login.js`.
 - Muốn đổi mã PIN: chỉ cần sửa giá trị `ADMIN_REGISTER_PIN` trong `.env` (và trên Netlify nếu đã deploy) — không cần sửa code.
 - `scripts/seed-admin.js` vẫn giữ nguyên, dùng khi cần tạo admin trực tiếp qua script mà không qua PIN (vd Claude tạo giúp trong lúc code như đã làm với tài khoản `anhhai`).
+
+## Cập nhật — web đã lên thật (deploy qua GitHub + Netlify)
+
+- Repo GitHub: `https://github.com/Gia-Hao2009/web-luyen-de` (Public). Netlify site: `taupe-marzipan-9ef314.netlify.app`, deploy tự động mỗi khi có commit mới trên nhánh `main`.
+- `exam-source/` (nội dung đề gốc — docx/pdf/ảnh scan, có thể dính bản quyền) **bị gitignore, KHÔNG nằm trong repo GitHub** — chỉ tồn tại local trên máy. Chỉ giữ lại `exam-source/README.md` và `exam-source/exam-template.json` (thuần hướng dẫn quy trình, không phải nội dung đề) trong git.
+- 4 biến môi trường đã khai báo trên Netlify (Project configuration → Environment variables), giống hệt file `.env` local: `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`, `AUTH_SECRET`, `ADMIN_REGISTER_PIN`.
+- **Quy trình đẩy đề mới KHÔNG đổi phía người dùng** (vẫn bỏ file vào `exam-source/...` rồi báo Claude), nhưng phía xử lý giờ có 2 nhánh tuỳ đề có ảnh hay không:
+  - Đề **không có ảnh**: chạy `push-exam.js` đẩy thẳng lên Airtable là xong — hiện trên web thật ngay, **không cần deploy lại** (nội dung câu hỏi nằm trong Airtable, tách biệt hoàn toàn khỏi code).
+  - Đề **có ảnh**: ảnh được copy vào `public/exam-images/<examId>/` — đây là file tĩnh nằm TRONG code, chỉ lên web thật khi được đẩy lên GitHub. Sau khi chạy `push-exam.js`, Claude phải tự `git add` + `git commit` + `git push` phần ảnh mới lên nhánh `main` để Netlify tự động build & deploy lại (~1 phút).
+- Vì `exam-source/` không nằm trong git, các file gốc (docx/pdf) chỉ tồn tại trên máy hiện tại — nếu đổi máy hoặc mất máy sẽ mất luôn các file gốc này (không phải mất đề trên web, đề vẫn còn nguyên trên Airtable, chỉ mất file tài liệu gốc để đối chiếu sau này). Nên cân nhắc backup riêng thư mục `exam-source/` lên Google Drive hoặc 1 repo GitHub Private khác nếu muốn giữ lại.
+- **Đính chính quan trọng**: KHÔNG chỉ ảnh mới cần `git push` — **bất kỳ thay đổi code nào trong `public/`, `netlify/functions/`, v.v. đều cần commit + push lên GitHub thì web thật mới cập nhật** (Netlify build từ GitHub, không phải từ máy local). Chỉ riêng nội dung ĐỀ THI (câu hỏi, đáp án, giải thích qua `push-exam.js`) là đi thẳng vào Airtable nên không cần push. Từ giờ mỗi lần sửa code, Claude phải tự nhớ `git add`+`commit`+`push` sau khi sửa xong, không đợi user nhắc.
+
+## Cập nhật — tắt autocorrect/spellcheck trình duyệt trên ô nhập đáp án & bài luận
+
+- Bug: học sinh báo gõ đúng 1 từ nhưng bị "tự sửa" thành từ khác. Nguyên nhân: ô input điền đáp án (Reading, `exam.html`) và textarea bài luận (`writing.html`) không tắt `spellcheck`/`autocorrect`/`autocapitalize` của trình duyệt/bàn phím điện thoại — trên mobile (đặc biệt iOS), bàn phím tự động thay từ đang gõ mà không cần xác nhận, làm sai lệch đáp án đúng (Reading chấm exact-match) hoặc thay đổi nội dung bài luận ngoài ý muốn.
+- Đã fix: thêm `spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"` vào input điền đáp án (`exam.html`) và textarea viết bài (`writing.html`). Đã commit + push lên GitHub, Netlify tự deploy lại.
+- Ghi nhớ: mọi ô nhập liệu liên quan tới đáp án/nội dung được chấm điểm (input đáp án, textarea bài luận) đều PHẢI tắt các thuộc tính này ngay từ đầu khi tạo mới — không phải chỉ sửa khi có báo lỗi.
