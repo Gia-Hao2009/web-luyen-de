@@ -221,3 +221,8 @@ File này ghi lại các quyết định đã chốt với chủ dự án, để
 - Bug: học sinh báo gõ đúng 1 từ nhưng bị "tự sửa" thành từ khác. Nguyên nhân: ô input điền đáp án (Reading, `exam.html`) và textarea bài luận (`writing.html`) không tắt `spellcheck`/`autocorrect`/`autocapitalize` của trình duyệt/bàn phím điện thoại — trên mobile (đặc biệt iOS), bàn phím tự động thay từ đang gõ mà không cần xác nhận, làm sai lệch đáp án đúng (Reading chấm exact-match) hoặc thay đổi nội dung bài luận ngoài ý muốn.
 - Đã fix: thêm `spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"` vào input điền đáp án (`exam.html`) và textarea viết bài (`writing.html`). Đã commit + push lên GitHub, Netlify tự deploy lại.
 - Ghi nhớ: mọi ô nhập liệu liên quan tới đáp án/nội dung được chấm điểm (input đáp án, textarea bài luận) đều PHẢI tắt các thuộc tính này ngay từ đầu khi tạo mới — không phải chỉ sửa khi có báo lỗi.
+
+## Cập nhật — nút xoá bài nộp Writing (cả 2 tab Chờ chấm/Đã chấm)
+
+- Thêm function mới `delete-writing.js`: xoá 1 `WritingSubmissions` record theo `submissionId`, đồng thời xoá luôn `WritingFeedback` liên quan (tìm theo `SubmissionRecordId`) nếu bài đã được chấm — tránh để sót bản ghi điểm mồ côi khi xoá bài đã chấm.
+- `admin/grade.html`: mỗi thẻ bài nộp (cả tab "Chờ chấm" lẫn "Đã chấm") có thêm nút 🗑️ cạnh badge username, có `confirm()` trước khi xoá, xoá xong tự load lại danh sách.

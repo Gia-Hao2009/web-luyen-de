@@ -67,9 +67,12 @@ function essaysBlockHtml(s) {
 function pendingCardHtml(s) {
   return `
     <div class="card">
-      <div style="display:flex;justify-content:space-between;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
         <strong>${s.examTitle}</strong>
-        <span class="badge">${s.studentUsername}</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="badge">${s.studentUsername}</span>
+          <button type="button" class="icon-btn" title="Xoá bài nộp này" onclick="deleteSubmission('${s.id}')">🗑️</button>
+        </div>
       </div>
       <div class="muted">${new Date(s.submittedAt).toLocaleString("vi-VN")}</div>
       ${essaysBlockHtml(s)}
@@ -95,9 +98,12 @@ function gradedCardHtml(s) {
   const fb = s.feedback;
   return `
     <div class="card">
-      <div style="display:flex;justify-content:space-between;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
         <strong>${s.examTitle}</strong>
-        <span class="badge">${s.studentUsername}</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="badge">${s.studentUsername}</span>
+          <button type="button" class="icon-btn" title="Xoá bài nộp này" onclick="deleteSubmission('${s.id}')">🗑️</button>
+        </div>
       </div>
       <div class="muted">${new Date(s.submittedAt).toLocaleString("vi-VN")}</div>
       ${essaysBlockHtml(s)}
@@ -213,6 +219,16 @@ function removeMarkAtTarget() {
     el.parentNode.removeChild(el);
   }
   removeMenu.style.display = "none";
+}
+
+async function deleteSubmission(id) {
+  if (!confirm("Xoá bài nộp này? (Xoá luôn cả điểm đã chấm nếu có, không hoàn tác được)")) return;
+  try {
+    await Api.call("delete-writing", { method: "POST", body: { submissionId: id } });
+    load();
+  } catch (err) {
+    alert(err.message);
+  }
 }
 
 async function gradeSubmission(id, taskOrders) {
