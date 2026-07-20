@@ -115,7 +115,7 @@ function renderQuestionBlock(q, displayIndex) {
         <span>${opt}</span>
       </label>`).join("");
   } else {
-    inputHtml = `<input type="text" name="q_${q.id}" maxlength="${q.maxLength || 50}" placeholder="Nhập đáp án" />`;
+    inputHtml = `<input type="text" name="q_${q.id}" maxlength="${q.maxLength || 50}" placeholder="Nhập đáp án" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" />`;
   }
   const answerNote = (isAdminView && q.correctAnswer !== undefined)
     ? `<div class="admin-answer-note"><strong>Đáp án:</strong> ${q.correctAnswer}${q.explanation ? ` — ${q.explanation}` : ""}</div>`
